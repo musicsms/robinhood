@@ -113,6 +113,19 @@ def scrape_clearweb_single(
     sess = session or build_clearweb_session()
     max_chars = max_return_chars if max_return_chars is not None else MAX_RETURN_CHARS
 
+    # Special handler for public Telegram channels
+    from modules.scrape.telegram import is_telegram_channel, scrape_telegram_channel
+    if is_telegram_channel(url):
+        t_res = scrape_telegram_channel(url, max_return_chars=max_chars, session=sess)
+        if t_res.get("status") == "ok" and t_res.get("text"):
+            return make_scrape_record(
+                STATUS_OK,
+                title=t_res.get("title") or title,
+                text=t_res["text"],
+                http_status=200,
+                url=url,
+            )
+
     try:
         response = sess.get(url, allow_redirects=True, stream=True, timeout=timeout)
     except requests.RequestException as e:

@@ -60,6 +60,7 @@ TOOL_NAMES = (
     "robin_health",
     "robin_list_investigations",
     "robin_save_investigation",
+    "robin_cti_lookup",
 )
 
 # robin_save_investigation's bounds. The report, sources and pivots are refused
@@ -1687,6 +1688,41 @@ def build_server(cfg: Optional[RobinConfig] = None,
                     len(saved), "\n".join(uris) or "(none readable)",
                     scrape.fence_untrusted("\n".join(details),
                                            "saved investigation details")))
+
+    @mcp.tool(title="Lookup threat intelligence in CTI knowledge base")
+    async def robin_cti_lookup(
+        query: str,
+        category: Annotated[str, Field(description="Optional category filter (e.g. ransomware, forum, market, telegram_threat_actor, cve)")] = "",
+        online_only: Annotated[bool, Field(description="If true, only return online links")] = False,
+        limit: Annotated[int, Field(ge=1, le=50, description="Max records to return")] = 10,
+    ) -> str:
+        """Search the offline CTI knowledge base (2,700+ curated records).
+
+        Matches threat actors, ransomware leak sites, dark web forums,
+        malware-as-a-service providers, and Telegram channels. Returns verified
+        names, categories, operational status, onion links, and descriptions.
+        Does not require Tor or external internet connectivity.
+        """
+        from modules.cti.lookup import search_cti_records, format_cti_summary
+        cleaned_query = (query or "").strip()
+        if not cleaned_query:
+            return "status: error\nquery cannot be empty"
+
+        cat = category.strip().lower() if category else None
+        records = await anyio.to_thread.run_sync(
+            functools.partial(
+                search_cti_records,
+                cleaned_query,
+                category=cat,
+                online_only=online_only,
+                limit=limit,
+            )
+        )
+        if not records:
+            return f"status: no_matches\nNo CTI records matched {cleaned_query!r}."
+
+        formatted = format_cti_summary(records)
+        return f"status: ok\nFound {len(records)} CTI records for {cleaned_query!r}:\n\n{formatted}"
 
     _register_prompts(mcp)
     return mcp

@@ -299,6 +299,19 @@ deep_loop_enabled = st.sidebar.checkbox(
 )
 max_iterations = 2 if deep_loop_enabled else 1
 
+with st.sidebar.expander("📚 CTI Knowledge Base"):
+    try:
+        from modules.cti.lookup import get_cti_stats
+        from modules.cti.updater import sync_cti_dataset
+        stats = get_cti_stats()
+        st.caption(f"Indexed: **{stats.get('total_records', 0):,}** records across **{stats.get('categories_count', 0)}** categories")
+        if st.button("🔄 Sync with Upstream CTI", help="Check and download latest updates from fastfire/deepdarkCTI"):
+            with st.spinner("Syncing from GitHub..."):
+                sync_res = sync_cti_dataset()
+                st.success(f"Synced! {len(sync_res['updated_files'])} updated, total: {sync_res['total_records']:,}")
+    except Exception as e:
+        st.caption(f"CTI Engine ready ({e})")
+
 with st.sidebar.expander("⚙️ Prompt Settings"):
     # Labels come from the preset catalog, so the sidebar and the MCP tools name
     # the four domains identically.

@@ -314,3 +314,10 @@ def get_db_connection(
                 force_rebuild=force_rebuild,
             )
         return _CACHED_CONN
+
+
+def reset_db_connection() -> None:
+    """Reset cached singleton connection to allow clean rebuilds."""
+    global _CACHED_CONN
+    with _LOCK:
+        _CACHED_CONN = None

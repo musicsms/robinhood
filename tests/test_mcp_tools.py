@@ -75,13 +75,13 @@ class TheServedSurface(unittest.TestCase):
         self.server, _ = build()
         self.tools = served_tools(self.server)
 
-    def test_nine_tools_are_served_each_with_a_description(self):
-        """The server serves exactly its nine tools, each with a description."""
+    def test_ten_tools_are_served_each_with_a_description(self):
+        """The server serves exactly its ten tools, each with a description."""
         self.assertEqual(sorted(self.tools), sorted(mcp_server.TOOL_NAMES))
         self.assertEqual(set(self.tools), {
             "robin_search", "robin_scrape", "robin_investigate", "robin_list_models",
             "robin_health", "robin_list_investigations", "robin_save_investigation",
-            "robin_refine", "robin_filter"})
+            "robin_refine", "robin_filter", "robin_cti_lookup"})
         for name, tool in self.tools.items():
             self.assertTrue((tool.description or "").strip(), name)
 
@@ -1032,7 +1032,24 @@ class RobinHealthAndModels(unittest.TestCase):
         self.assertIn("- gpt-4o", body)
 
 
-# --- the search layer, checked directly ------------------------------------
+class RobinCTILookupTool(unittest.TestCase):
+    """robin_cti_lookup queries the offline CTI dataset without needing Tor."""
+
+    def test_cti_lookup_tool_returns_matched_records(self):
+        server, _ = build()
+        body = text_of(call(server, "robin_cti_lookup", {"query": "LockBit"}))
+        self.assertIn("status: ok", body)
+        self.assertIn("LockBit", body)
+
+    def test_cti_lookup_tool_empty_query_error(self):
+        server, _ = build()
+        body = text_of(call(server, "robin_cti_lookup", {"query": ""}))
+        self.assertIn("status: error", body)
+
+    def test_cti_lookup_tool_no_matches(self):
+        server, _ = build()
+        body = text_of(call(server, "robin_cti_lookup", {"query": "nonexistent_gang_xyz_999"}))
+        self.assertIn("status: no_matches", body)
 
 
 if __name__ == "__main__":
