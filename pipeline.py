@@ -23,7 +23,7 @@ from llm import (
 )
 from llm_utils import BufferedStreamingHandler, response_text
 from prompts import PRESETS
-from scrape import scrape_multiple
+from scrape import is_onion, scrape_multiple
 from search import engines_unreachable, get_search_results_detailed
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,10 @@ STAGE_ACTIONS = {
     "search": "search the dark web",
     "filter": "filter the search results",
     "scrape": "scrape the selected pages",
+    "eval_gap": "evaluate intelligence gaps",
     "summarize": "generate the investigation summary",
+    "pivots": "suggest investigation pivots",
+    "save": "save the investigation",
 }
 
 
@@ -110,6 +113,10 @@ class Investigation:
     finished_at: str = ""
     # The file `store.save_investigation` wrote, or None when it could not.
     saved_as: Optional[str] = None
+    search_scope: str = "darkweb"
+    max_iterations: int = 1
+    iterations_run: int = 1
+    cti_records: List[dict] = field(default_factory=list)
 
     def to_record(self) -> dict:
         """The JSON body written to disk.
@@ -136,6 +143,10 @@ class Investigation:
             "threads": self.threads,
             "pivots": self.pivots,
             "finished_at": self.finished_at,
+            "search_scope": self.search_scope,
+            "max_iterations": self.max_iterations,
+            "iterations_run": self.iterations_run,
+            "cti_matches_count": len(self.cti_records or []),
         }
 
 
@@ -164,7 +175,9 @@ def run_investigation(cfg: Optional[RobinConfig],
                       investigations_dir=None,
                       preset_label: Optional[str] = None,
                       llm_factory: Optional[Callable[[], object]] = None,
-                      save: bool = True) -> Investigation:
+                      save: bool = True,
+                      search_scope: str = "darkweb",
+                      max_iterations: int = 1) -> Investigation:
     """Run one investigation start to finish and return it."""
     def build_llm():
         return llm_factory() if llm_factory is not None else get_llm(model, cfg)
@@ -183,6 +196,8 @@ def run_investigation(cfg: Optional[RobinConfig],
         content_chars=content_chars,
         threads=threads,
         started_at=_now(),
+        search_scope=search_scope,
+        max_iterations=max_iterations,
     )
 
     # Stage 1 - the model
@@ -203,10 +218,67 @@ def run_investigation(cfg: Optional[RobinConfig],
     # hands over the refined query verbatim.
     stage("search")
     try:
-        outcome = (search_fn(inv.refined, threads) if search_fn is not None
-                   else get_search_results_detailed(inv.refined, max_workers=threads))
-        inv.results = list(outcome["results"])
-        inv.search_stats = dict(outcome["stats"])
+        if search_fn is not None:
+            outcome = search_fn(inv.refined, threads)
+            inv.results = list(outcome["results"])
+            inv.search_stats = dict(outcome.get("stats") or {})
+        else:
+            merged_results = []
+            merged_stats = {}
+
+            # CTI directory lookup
+            if search_scope in ("hybrid", "clearweb"):
+                try:
+                    from modules.cti.lookup import search_cti_records
+                    inv.cti_records = search_cti_records(query, limit=5)
+                    if not inv.cti_records and inv.refined and inv.refined != query:
+                        inv.cti_records = search_cti_records(inv.refined, limit=5)
+                    for r in inv.cti_records:
+                        if r.get("url") and r.get("is_online"):
+                            if search_scope == "clearweb" and is_onion(r["url"]):
+                                continue
+                            merged_results.append({
+                                "title": f"[{r['category'].upper()}] {r['name']} ({r['status']})",
+                                "link": r["url"],
+                                "snippet": f"CTI Directory: {r.get('description') or ''} {r.get('extra_channels') or ''}".strip(),
+                                "source": "cti_directory",
+                            })
+                except Exception as exc:
+                    logger.warning("CTI lookup encountered error: %s", exc)
+
+            # Dark Web search
+            if search_scope in ("hybrid", "darkweb"):
+                try:
+                    outcome = get_search_results_detailed(inv.refined, max_workers=threads)
+                    merged_results.extend(outcome.get("results") or [])
+                    merged_stats.update(outcome.get("stats") or {})
+                except Exception as exc:
+                    if search_scope == "darkweb":
+                        raise
+                    logger.warning("Darkweb search error in %s mode: %s", search_scope, exc)
+
+            # Clear Web search
+            if search_scope in ("hybrid", "clearweb"):
+                try:
+                    from modules.search.clearweb import search_clearweb
+                    cw_results = search_clearweb(inv.refined or query, max_results=max_results)
+                    merged_results.extend(cw_results)
+                except Exception as exc:
+                    if search_scope == "clearweb":
+                        raise
+                    logger.warning("Clearweb search error in %s mode: %s", search_scope, exc)
+
+            # Deduplicate by URL
+            seen_urls = set()
+            deduped = []
+            for item in merged_results:
+                raw_u = (item.get("link") or "").rstrip("/").lower()
+                if raw_u and raw_u not in seen_urls:
+                    seen_urls.add(raw_u)
+                    deduped.append(item)
+
+            inv.results = deduped
+            inv.search_stats = merged_stats
     except Exception as exc:
         raise PipelineError("search", exc) from exc
 
@@ -240,15 +312,68 @@ def run_investigation(cfg: Optional[RobinConfig],
         if scrape_fn is not None:
             inv.scraped = scrape_fn(inv.filtered, threads, content_chars) or {}
         else:
-            inv.scraped = scrape_multiple(inv.filtered, max_workers=threads,
-                                          max_return_chars=content_chars) or {}
+            onion_items = [u for u in inv.filtered if is_onion(u.get("link") if isinstance(u, dict) else str(u))]
+            clear_items = [u for u in inv.filtered if not is_onion(u.get("link") if isinstance(u, dict) else str(u))]
+
+            scraped_pages = {}
+            if onion_items:
+                scraped_pages.update(
+                    scrape_multiple(onion_items, max_workers=threads, max_return_chars=content_chars) or {}
+                )
+            if clear_items:
+                from modules.scrape.clearweb import scrape_clearweb_multiple
+                c_recs = scrape_clearweb_multiple(clear_items, max_workers=threads, max_return_chars=content_chars)
+                for cr in c_recs:
+                    if cr.get("status") == "ok" and cr.get("text"):
+                        scraped_pages[cr["url"]] = cr["text"]
+            inv.scraped = scraped_pages
     except Exception as exc:
         raise PipelineError("scrape", exc) from exc
 
     if not inv.scraped:
-        # Not one kept page could be read over Tor. No summary, no pivots, no
-        # save: there is nothing to write them from.
+        # Not one kept page could be read. No summary, no pivots, no save.
         return _finish(inv, STATUS_NOTHING_READABLE)
+
+    # Iterative Deepening Loop (if enabled)
+    if max_iterations > 1 and inv.scraped and len(inv.scraped) > 0:
+        stage("eval_gap")
+        try:
+            from llm import evaluate_research_gaps
+            gap_pivots = evaluate_research_gaps(build_llm(), query, inv.scraped)
+            if gap_pivots:
+                logger.info("Deep loop identified intelligence gaps: %s", gap_pivots)
+                for pivot_q in gap_pivots:
+                    pivot_items = []
+                    if search_scope in ("hybrid", "clearweb"):
+                        try:
+                            from modules.search.clearweb import search_clearweb
+                            pivot_items.extend(search_clearweb(pivot_q, max_results=3))
+                        except Exception as e:
+                            logger.warning("Pivot clearweb search error: %s", e)
+                    if search_scope in ("hybrid", "darkweb"):
+                        try:
+                            p_out = get_search_results_detailed(pivot_q, max_workers=threads)
+                            pivot_items.extend(p_out.get("results") or [])
+                        except Exception as e:
+                            logger.warning("Pivot darkweb search error: %s", e)
+
+                    new_items = [r for r in pivot_items if (r.get("link") or "") not in inv.scraped][:2]
+                    if new_items:
+                        onion_p = [r for r in new_items if is_onion(r.get("link") or "")]
+                        clear_p = [r for r in new_items if not is_onion(r.get("link") or "")]
+                        if onion_p:
+                            inv.scraped.update(
+                                scrape_multiple(onion_p, max_workers=threads, max_return_chars=content_chars) or {}
+                            )
+                        if clear_p:
+                            from modules.scrape.clearweb import scrape_clearweb_multiple
+                            c_p_res = scrape_clearweb_multiple(clear_p, max_workers=threads, max_return_chars=content_chars)
+                            for cr in c_p_res:
+                                if cr.get("status") == "ok" and cr.get("text"):
+                                    inv.scraped[cr["url"]] = cr["text"]
+                inv.iterations_run = 2
+        except Exception as exc:
+            logger.warning("Gap evaluation failed: %s", exc)
 
     # Stage 6 - summarize, streaming through the caller's callback
     stage("summarize")
@@ -260,9 +385,22 @@ def run_investigation(cfg: Optional[RobinConfig],
             on_token(chunk)
 
     llm.callbacks = [BufferedStreamingHandler(ui_callback=_emit)]
+
+    # Enrich custom instructions with CTI Directory matches if available
+    summary_instructions = custom_instructions or ""
+    if inv.cti_records:
+        try:
+            from modules.cti.lookup import format_cti_summary
+            cti_block = format_cti_summary(inv.cti_records, max_chars=2000)
+            summary_instructions = (
+                f"{summary_instructions}\n\nCTI DIRECTORY CONTEXT:\n{cti_block}".strip()
+            )
+        except Exception as exc:
+            logger.warning("Failed to format CTI summary: %s", exc)
+
     try:
         returned = generate_summary(llm, query, inv.scraped, preset=preset,
-                                    custom_instructions=custom_instructions)
+                                    custom_instructions=summary_instructions)
     except Exception as exc:
         raise PipelineError("summarize", exc) from exc
 

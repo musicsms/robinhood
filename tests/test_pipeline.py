@@ -310,6 +310,26 @@ class Saving(PipelineTestCase):
         self.assertEqual(record["sources"], RESULTS[:2])
         self.assertEqual((record["results_count"], record["scraped_count"]), (8, 2))
         self.assertNotIn("page one body", json.dumps(record))
+        self.assertIn("search_scope", record)
+        self.assertIn("max_iterations", record)
+
+    def test_hybrid_search_scope_and_cti_records(self):
+        inv = self.run_it(search_scope="hybrid", save=False)
+        self.assertEqual(inv.search_scope, "hybrid")
+        rec = inv.to_record()
+        self.assertEqual(rec["search_scope"], "hybrid")
+
+    def test_iterative_deep_loop_runs_and_announces_eval_gap(self):
+        stages = []
+        with mock.patch("llm.evaluate_research_gaps", return_value=["acme pivot"]):
+            inv = self.run_it(
+                max_iterations=2,
+                save=False,
+                on_stage=lambda name, i: stages.append(name),
+            )
+        self.assertEqual(inv.max_iterations, 2)
+        self.assertEqual(inv.iterations_run, 2)
+        self.assertIn("eval_gap", stages)
 
 
 class TheSearchLayerEncodesTheQuery(unittest.TestCase):

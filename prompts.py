@@ -285,3 +285,23 @@ PIVOTS_SYSTEM_PROMPT = """
     INVESTIGATION QUERY: {query}
     INVESTIGATION DATA:
     """
+
+
+# Deep loop research gap evaluation prompt
+GAP_EVALUATION_PROMPT = """
+You are an expert Cyber Threat Intelligence Lead Investigator.
+Review the initial investigation query and the evidence collected from sources so far.
+
+Original Query: {query}
+Current Findings Evidence:
+{findings}
+
+Determine if there are critical intelligence gaps that prevent a complete assessment (e.g. unknown victim identities, missing ransomware leak site URLs, unverified threat actor affiliations, or missing CVE PoCs).
+
+Instructions:
+1. If the current findings adequately address the query, output ONLY: SUFFICIENT
+2. If critical information is missing, output at most 2 specific pivot search queries, each on a new line starting with "QUERY: ".
+
+Keep queries concise (under 5 words). Do not include conversational text or explanations.
+"""
+

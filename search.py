@@ -9,6 +9,7 @@ from urllib3.util.retry import Retry
 # Shared with the scraper, so the Tor proxy and body handling are defined once.
 from scrape import (TOR_PROXIES, decode_capped, get_over_tor, no_redirect_target,
                     read_capped, scrub_untrusted_text)
+from core.security import _ABUSE_MATERIAL, is_abuse_material
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -247,26 +248,7 @@ def _result_host(link):
         return ""
 
 
-# Child sexual abuse material: never listed, filtered or scraped. Only
-# unambiguous patterns, so an adult or leak title is not dropped with them.
-_ABUSE_MATERIAL = re.compile(
-    r"child\W{0,3}(?:porn|sex|rape|nud)"
-    r"|(?:rape|porn|sex)\W{0,3}child"
-    r"|\bpedo(?:phil\w*|s)?\b"
-    r"|\bpthc\b|\bjailbait\b|\bpreteens?\b|\blolitas?\b|\bhurtcore\b"
-    r"|\bkidflix|\bonly\W{0,3}kids"
-    r"|\bkid(?:s|dy|die)?\W{0,3}(?:porn|sex|nud)"
-    r"|\bunderage\W{0,3}(?:porn|sex|nud|girls?|boys?)"
-    r"|\bcp\W{0,3}(?:porn|videos?|links?|archive|collection)\b"
-    r"|\bcsam\b",
-    re.IGNORECASE)
-
-
-def is_abuse_material(result) -> bool:
-    """True when a result's title or link names child sexual abuse material."""
-    link = result.get("link") or ""
-    text = "{} {} {}".format(result.get("title") or "", link, unquote(link))
-    return bool(_ABUSE_MATERIAL.search(text))
+# Child sexual abuse material filter is imported from core.security.
 
 
 TOR_BOOTSTRAP_MARK = "Bootstrapped 100%"

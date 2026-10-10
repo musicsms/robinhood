@@ -11,6 +11,7 @@ from prompts import (
     FILTER_SYSTEM_PROMPT,
     FOLLOWUP_PERSONAS,
     FOLLOWUP_SYSTEM,
+    GAP_EVALUATION_PROMPT,
     PIVOTS_SYSTEM_PROMPT,
     PRESET_PROMPTS,
     REFINE_SYSTEM_PROMPT,
@@ -473,3 +474,32 @@ def suggest_pivots(llm, query, content, preset="threat_intel", max_pivots=5):
         if isinstance(p, str) and p.strip():
             cleaned.append(p.strip())
     return cleaned[:max_pivots]
+
+
+def evaluate_research_gaps(llm, query: str, content: dict, max_chars: int = 4000) -> list[str]:
+    """Analyze current scraped evidence and return pivot queries if gaps exist."""
+    findings_sample = _flatten_scraped(content, char_budget=max_chars)
+    prompt_template = ChatPromptTemplate(
+        [
+            ("system", GAP_EVALUATION_PROMPT),
+        ]
+    )
+    chain = prompt_template | llm | response_text
+    try:
+        response = chain.invoke({"query": query, "findings": findings_sample})
+    except Exception as e:
+        logging.warning("Gap evaluation call failed: %s", e)
+        return []
+
+    if "SUFFICIENT" in response.upper():
+        return []
+
+    pivots = []
+    for line in response.splitlines():
+        line = line.strip()
+        if line.startswith("QUERY:"):
+            q = line.split(":", 1)[1].strip()
+            if q:
+                pivots.append(q)
+    return pivots[:2]
+

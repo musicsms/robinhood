@@ -277,6 +277,28 @@ for name, value, is_cloud in _providers:
     else:
         st.sidebar.markdown(f"&ensp;🔵 **{name}** — not configured *(optional)*")
 
+st.sidebar.divider()
+st.sidebar.subheader("Investigation Mode")
+scope_options = {
+    "🌐 Hybrid (Clear + Dark + CTI)": "hybrid",
+    "🧅 Dark Web Only": "darkweb",
+    "🔎 Clear Web Only": "clearweb",
+}
+selected_scope_label = st.sidebar.selectbox(
+    "Search Scope",
+    list(scope_options.keys()),
+    index=0,
+    help="Hybrid combines Dark Web, Clear Web, and deepdarkCTI directory lookup.",
+)
+selected_scope = scope_options[selected_scope_label]
+
+deep_loop_enabled = st.sidebar.checkbox(
+    "Deep Investigation Loop",
+    value=False,
+    help="AI evaluates intelligence gaps and runs automated pivot searches before final report.",
+)
+max_iterations = 2 if deep_loop_enabled else 1
+
 with st.sidebar.expander("⚙️ Prompt Settings"):
     # Labels come from the preset catalog, so the sidebar and the MCP tools name
     # the four domains identically.
@@ -557,9 +579,10 @@ def _render_chat_panel(inv):
 _STAGE_LABELS = {
     "load_llm": "🔄 Loading LLM...",
     "refine": "🔄 Refining query...",
-    "search": "🔍 Searching dark web...",
+    "search": "🔍 Searching (Dark Web / Clear Web / CTI)...",
     "filter": "🗂️ Filtering results...",
     "scrape": "📜 Scraping content...",
+    "eval_gap": "🔎 Evaluating intelligence gaps...",
     "summarize": "✍️ Generating summary...",
     "pivots": "💡 Suggesting pivots...",
     "save": "💾 Saving investigation...",
@@ -675,9 +698,11 @@ if _do_run:
             threads=threads,
             on_stage=_on_stage,
             on_token=_on_token,
-            search_fn=cached_search_results,
-            scrape_fn=cached_scrape_multiple,
+            search_fn=cached_search_results if selected_scope == "darkweb" else None,
+            scrape_fn=cached_scrape_multiple if selected_scope == "darkweb" else None,
             preset_label=selected_preset_label,
+            search_scope=selected_scope,
+            max_iterations=max_iterations,
         )
     except PipelineError as e:
         _tiles.fail()
