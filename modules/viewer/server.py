@@ -118,22 +118,34 @@ async def handle_get_runs(request: web.Request) -> web.Response:
     runs: List[Dict[str, Any]] = []
     seen_ids: Set[str] = set()
 
+    seen_ids = set()
+    seen_query_times = set()
+
     # Active in-progress runs first
     for run_id, collector in _active_collectors(app).items():
         meta = collector.metadata.model_dump()
         runs.append(meta)
         seen_ids.add(meta["id"])
+        q_key = (meta.get("target_query", "").strip().lower(), (meta.get("start_time") or "")[:16])
+        if q_key[0] and q_key[1]:
+            seen_query_times.add(q_key)
 
-    # Historical files from investigations_dir
+    # Historical files from investigations_dir (bundles prioritized first)
     if inv_dir.exists():
-        json_files = sorted(inv_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        json_files = sorted(
+            inv_dir.glob("*.json"),
+            key=lambda p: (0 if p.name.startswith("bundle_") else 1, -p.stat().st_mtime),
+        )
         for p in json_files:
             try:
                 bundle = load_bundle(p)
                 meta = bundle.metadata.model_dump()
-                if meta["id"] not in seen_ids:
+                q_key = (meta.get("target_query", "").strip().lower(), (meta.get("start_time") or "")[:16])
+                if meta["id"] not in seen_ids and (not q_key[0] or not q_key[1] or q_key not in seen_query_times):
                     runs.append(meta)
                     seen_ids.add(meta["id"])
+                    if q_key[0] and q_key[1]:
+                        seen_query_times.add(q_key)
             except Exception as exc:
                 logger.debug("Failed to read investigation file %s: %s", p.name, exc)
 

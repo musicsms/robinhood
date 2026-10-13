@@ -274,8 +274,10 @@ class RobinViewer {
 
       // Tor indicator
       if (this.elStatusTor) {
-        const torOk = data.tor && data.tor.status === "ok";
-        this.elStatusTor.innerHTML = `<span class="pulse-dot ${torOk ? '' : 'down'}"></span> Tor: ${torOk ? 'OK' : 'DOWN'}`;
+        const torOk = data.tor && (data.tor.status === "up" || data.tor.status === "ok");
+        const isStarting = data.tor && data.tor.status === "starting";
+        const label = torOk ? "OK" : (isStarting ? "STARTING" : "DOWN");
+        this.elStatusTor.innerHTML = `<span class="pulse-dot ${torOk ? '' : 'down'}"></span> Tor: ${label}`;
       }
 
       // CTI indexed count
@@ -662,7 +664,7 @@ class RobinViewer {
       this.trace.summary = summary;
       this.trace.pivots = pivots;
       this.renderReport(summary, pivots);
-      this.setExecutionState("COMPLETED");
+      this.setExecutionState((data.data && data.data.status) || "COMPLETED");
       this.resetFormButtons();
       this.fetchRuns();
     } else if (evType === "error") {
@@ -942,13 +944,14 @@ class RobinViewer {
     card.className = "finding-card";
 
     const titleText = finding.title || finding.link || "Threat Source";
-    const linkHref = finding.link || "#";
+    const rawLink = (finding.link || "").trim();
+    const linkHref = /^(https?:\/\/|#)/i.test(rawLink) ? rawLink : "#";
     const src = finding.source || "web";
     const snippet = finding.snippet || finding.description || "";
 
     card.innerHTML = `
       <div class="finding-header">
-        <span class="finding-title"><a href="${this.escapeHtml(linkHref)}" target="_blank" rel="noopener">${this.escapeHtml(titleText)}</a></span>
+        <span class="finding-title"><a href="${this.escapeHtml(linkHref)}" target="_blank" rel="noopener noreferrer">${this.escapeHtml(titleText)}</a></span>
         <span class="finding-source">${this.escapeHtml(src)}</span>
       </div>
       <div class="finding-snippet">${this.escapeHtml(snippet)}</div>

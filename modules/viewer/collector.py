@@ -173,7 +173,7 @@ class InvestigationCollector:
         self.dispatch(TraceEvent(
             event_type=EventType.REPORT,
             stage="finish",
-            data={"summary": self.summary, "pivots": self.pivots},
+            data={"summary": self.summary, "pivots": self.pivots, "status": self.metadata.status},
         ))
         return bundle
 
