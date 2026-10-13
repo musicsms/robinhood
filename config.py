@@ -166,6 +166,11 @@ class RobinConfig:
 _env_config = RobinConfig.from_env()
 
 
+def get_config() -> RobinConfig:
+	"""Return a RobinConfig instance loaded from the environment."""
+	return RobinConfig.from_env()
+
+
 def redact_secrets(text, cfg: Optional[RobinConfig] = None) -> str:
 	"""Strip configured secrets out of text that came from an authenticated call.
 
