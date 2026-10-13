@@ -28,6 +28,7 @@ class RobinViewer {
     this.elStatusTor = document.getElementById("status-tor");
     this.elStatusCti = document.getElementById("status-cti");
     this.elStatusModel = document.getElementById("status-model");
+    this.elBtnOpenSettings = document.getElementById("btn-open-settings");
     this.elStatusBadge = document.getElementById("status-badge");
     this.elRunDuration = document.getElementById("run-duration");
     this.elResultsCount = document.getElementById("results-count");
@@ -104,6 +105,19 @@ class RobinViewer {
     this.elBtnLast = document.getElementById("btn-last");
     this.elSpeedSelect = document.getElementById("speed-select");
     this.elPlaybackStatus = document.getElementById("playback-status");
+
+    // Settings Modal
+    this.elModalSettings = document.getElementById("modal-settings");
+    this.elBtnCloseSettings = document.getElementById("btn-close-settings");
+    this.elBtnCloseSettingsX = document.getElementById("btn-close-settings-x");
+    this.elSettingsForm = document.getElementById("settings-form");
+    this.elSettingsProvider = document.getElementById("settings-provider");
+    this.elSettingsBaseUrl = document.getElementById("settings-base-url");
+    this.elSettingsApiKey = document.getElementById("settings-api-key");
+    this.elBtnToggleKeyVisibility = document.getElementById("btn-toggle-key-visibility");
+    this.elSettingsModelName = document.getElementById("settings-model-name");
+    this.elSettingsAlert = document.getElementById("settings-alert");
+    this.elBtnSaveSettings = document.getElementById("btn-save-settings");
   }
 
   initListeners() {
@@ -226,8 +240,50 @@ class RobinViewer {
       });
     }
 
-    // Keyboard Shortcuts (Arrow navigation, Space for play/pause)
+    // Settings Modal listeners
+    if (this.elBtnOpenSettings) {
+      this.elBtnOpenSettings.addEventListener("click", () => this.openSettingsModal());
+    }
+
+    if (this.elBtnCloseSettings) {
+      this.elBtnCloseSettings.addEventListener("click", () => this.closeSettingsModal());
+    }
+
+    if (this.elBtnCloseSettingsX) {
+      this.elBtnCloseSettingsX.addEventListener("click", () => this.closeSettingsModal());
+    }
+
+    if (this.elModalSettings) {
+      this.elModalSettings.addEventListener("click", (e) => {
+        if (e.target === this.elModalSettings) {
+          this.closeSettingsModal();
+        }
+      });
+    }
+
+    if (this.elBtnToggleKeyVisibility) {
+      this.elBtnToggleKeyVisibility.addEventListener("click", () => this.toggleKeyVisibility());
+    }
+
+    if (this.elSettingsProvider) {
+      this.elSettingsProvider.addEventListener("change", (e) => this.handleProviderChange(e.target.value));
+    }
+
+    if (this.elSettingsForm) {
+      this.elSettingsForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.saveSettings();
+      });
+    } else if (this.elBtnSaveSettings) {
+      this.elBtnSaveSettings.addEventListener("click", () => this.saveSettings());
+    }
+
+    // Keyboard Shortcuts (Arrow navigation, Space for play/pause, Esc for modal)
     window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.elModalSettings && this.elModalSettings.style.display !== "none") {
+        this.closeSettingsModal();
+        return;
+      }
       if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") {
         return;
       }
@@ -1076,6 +1132,146 @@ class RobinViewer {
   escapeHtml(str) {
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
     return String(str).replace(/[&<>"']/g, (m) => map[m]);
+  }
+
+  // --- Settings Modal Methods ---
+
+  openSettingsModal() {
+    if (!this.elModalSettings) return;
+    this.hideSettingsAlert();
+    if (this.elSettingsApiKey) {
+      this.elSettingsApiKey.type = "password";
+      if (this.elBtnToggleKeyVisibility) this.elBtnToggleKeyVisibility.textContent = "👁️";
+    }
+    this.elModalSettings.style.display = "flex";
+    this.loadSettings();
+  }
+
+  closeSettingsModal() {
+    if (!this.elModalSettings) return;
+    this.elModalSettings.style.display = "none";
+    this.hideSettingsAlert();
+  }
+
+  toggleKeyVisibility() {
+    if (!this.elSettingsApiKey) return;
+    if (this.elSettingsApiKey.type === "password") {
+      this.elSettingsApiKey.type = "text";
+      if (this.elBtnToggleKeyVisibility) this.elBtnToggleKeyVisibility.textContent = "🙈";
+    } else {
+      this.elSettingsApiKey.type = "password";
+      if (this.elBtnToggleKeyVisibility) this.elBtnToggleKeyVisibility.textContent = "👁️";
+    }
+  }
+
+  handleProviderChange(provider) {
+    const presets = {
+      deepseek: { baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+      openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+      google: { baseUrl: "", model: "gemini-2.0-flash" },
+      anthropic: { baseUrl: "", model: "claude-3-5-sonnet-20241022" },
+      ollama: { baseUrl: "http://localhost:11434", model: "llama3.1" },
+      custom: { baseUrl: "", model: "" },
+    };
+
+    const preset = presets[provider];
+    if (preset) {
+      if (this.elSettingsBaseUrl) this.elSettingsBaseUrl.value = preset.baseUrl;
+      if (this.elSettingsModelName && preset.model) this.elSettingsModelName.value = preset.model;
+    }
+  }
+
+  async loadSettings() {
+    try {
+      const resp = await fetch("/api/settings/llm");
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      if (this.elSettingsProvider && data.provider) {
+        let prov = data.provider.toLowerCase();
+        if (prov === "gemini") prov = "google";
+        this.elSettingsProvider.value = prov;
+      }
+      if (this.elSettingsBaseUrl) {
+        this.elSettingsBaseUrl.value = data.base_url || "";
+      }
+      if (this.elSettingsApiKey) {
+        this.elSettingsApiKey.value = "";
+        if (data.api_key_masked) {
+          this.elSettingsApiKey.placeholder = `Masked: ${data.api_key_masked}`;
+        } else {
+          this.elSettingsApiKey.placeholder = "Enter API Key or leave unchanged...";
+        }
+      }
+      if (this.elSettingsModelName) {
+        this.elSettingsModelName.value = data.model || "";
+      }
+    } catch (err) {
+      console.warn("Could not load /api/settings/llm:", err);
+    }
+  }
+
+  showSettingsAlert(type, message) {
+    if (!this.elSettingsAlert) return;
+    this.elSettingsAlert.className = `settings-alert ${type}`;
+    this.elSettingsAlert.textContent = message;
+    this.elSettingsAlert.style.display = "block";
+  }
+
+  hideSettingsAlert() {
+    if (!this.elSettingsAlert) return;
+    this.elSettingsAlert.style.display = "none";
+    this.elSettingsAlert.textContent = "";
+  }
+
+  async saveSettings() {
+    const provider = this.elSettingsProvider ? this.elSettingsProvider.value : "custom";
+    const baseUrl = this.elSettingsBaseUrl ? this.elSettingsBaseUrl.value.trim() : "";
+    const apiKey = this.elSettingsApiKey ? this.elSettingsApiKey.value.trim() : "";
+    const model = this.elSettingsModelName ? this.elSettingsModelName.value.trim() : "";
+
+    this.showSettingsAlert("loading", `Testing connection to ${provider}...`);
+
+    if (this.elBtnSaveSettings) this.elBtnSaveSettings.disabled = true;
+    if (this.elBtnCloseSettings) this.elBtnCloseSettings.disabled = true;
+
+    try {
+      const resp = await fetch("/api/settings/llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: provider,
+          base_url: baseUrl,
+          api_key: apiKey,
+          model: model,
+          test_connection: true,
+        }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        const errorMsg = (data && (data.error || data.message)) || "Connection test failed";
+        this.showSettingsAlert("error", `Error: ${errorMsg}`);
+      } else {
+        const successMsg = (data && data.message) || "Connected and saved successfully!";
+        this.showSettingsAlert("success", `✓ ${successMsg}`);
+
+        if (data.model && this.elStatusModel) {
+          this.elStatusModel.textContent = `Model: ${data.model}`;
+        }
+
+        await this.fetchStatus();
+
+        setTimeout(() => {
+          this.closeSettingsModal();
+        }, 1000);
+      }
+    } catch (err) {
+      this.showSettingsAlert("error", `Network error: ${err.message}`);
+    } finally {
+      if (this.elBtnSaveSettings) this.elBtnSaveSettings.disabled = false;
+      if (this.elBtnCloseSettings) this.elBtnCloseSettings.disabled = false;
+    }
   }
 }
 

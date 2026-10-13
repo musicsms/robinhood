@@ -74,6 +74,51 @@ def test_viewer_js_features():
     assert "timeline-slider" in js or "goToStep" in js
 
 
+def test_settings_modal_html_structure():
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+    # Header gear button
+    assert "btn-open-settings" in html
+
+    # Settings modal container
+    assert "modal-settings" in html
+
+    # Provider and input controls
+    assert "settings-provider" in html
+    assert "settings-base-url" in html
+    assert "settings-api-key" in html
+    assert "btn-toggle-key-visibility" in html
+    assert "settings-model-name" in html
+
+    # Alert box and action buttons
+    assert "settings-alert" in html
+    assert "btn-save-settings" in html
+    assert "settings-test-save" in html
+    assert "btn-close-settings" in html
+
+    # Provider options
+    for prov in ["deepseek", "openai", "anthropic", "google", "ollama", "custom"]:
+        assert prov in html.lower()
+
+
+def test_settings_modal_css_rules():
+    css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+    assert "modal-overlay" in css
+    assert "modal-card" in css
+    assert "btn-icon" in css
+    assert "settings-alert" in css or "alert" in css
+
+
+def test_settings_modal_js_integration():
+    js = (STATIC_DIR / "viewer.js").read_text(encoding="utf-8")
+    assert "/api/settings/llm" in js
+    assert "modal-settings" in js or "openSettingsModal" in js or "elModalSettings" in js
+    assert "btn-open-settings" in js
+    assert "btn-save-settings" in js or "saveSettings" in js
+    assert "btn-toggle-key-visibility" in js or "toggleKeyVisibility" in js
+
+
+
 class TestViewerStaticServing(AioHTTPTestCase):
     async def get_application(self):
         tmp_dir = Path("/tmp/robin_test_static_serve")

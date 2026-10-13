@@ -16,6 +16,7 @@
         <span class="pill" id="status-tor"><span class="pulse-dot"></span> Tor: Checking...</span>
         <span class="pill" id="status-cti">CTI: 0 records</span>
         <span class="pill" id="status-model">Model: auto</span>
+        <button id="btn-open-settings" class="btn-icon" title="LLM Provider Settings">⚙️</button>
         <span class="pill" id="status-badge">READY</span>
       </div>
 
@@ -344,6 +345,62 @@
         <span class="playback-status-text" id="playback-status">Ready</span>
       </div>
     </footer>
+
+    <!-- Settings Modal -->
+    <div id="modal-settings" class="modal-overlay" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="modal-icon">⚙️</span>
+            <span>LLM Provider &amp; Engine Settings</span>
+          </div>
+          <button type="button" class="btn-icon modal-close" id="btn-close-settings-x" title="Close Settings">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div id="settings-alert" class="settings-alert" style="display: none;"></div>
+
+          <form id="settings-form" class="settings-form">
+            <div class="form-group">
+              <label for="settings-provider">LLM Provider</label>
+              <select id="settings-provider">
+                <option value="deepseek">DeepSeek</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic Claude</option>
+                <option value="google">Google Gemini</option>
+                <option value="ollama">Ollama</option>
+                <option value="custom">Custom (OpenAI-Compatible)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="settings-base-url">Base URL / Endpoint</label>
+              <input type="text" id="settings-base-url" placeholder="https://api.deepseek.com/v1" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+              <label for="settings-api-key">API Key</label>
+              <div class="input-with-button">
+                <input type="password" id="settings-api-key" placeholder="Enter API Key or leave unchanged..." autocomplete="off">
+                <button type="button" id="btn-toggle-key-visibility" class="btn-icon" title="Toggle Key Visibility">👁️</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="settings-model-name">Model Name</label>
+              <input type="text" id="settings-model-name" placeholder="deepseek-chat" autocomplete="off">
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" id="btn-close-settings" class="btn-secondary">Cancel</button>
+              <button type="submit" id="btn-save-settings" class="btn-primary settings-test-save">
+                <span>⚡</span> Test &amp; Save
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/static/viewer.js"></script>

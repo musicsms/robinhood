@@ -1064,3 +1064,205 @@ input[type="range"] {
   font-style: italic;
   padding: 10px 0;
 }
+
+/* Settings Modal & Icon Buttons - Cyber Dark Styling */
+.btn-icon {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-icon:hover:not(:disabled) {
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+  background: rgba(88, 166, 255, 0.12);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #29323d;
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.78);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: modalFadeIn 0.15s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 490px;
+  max-width: 92vw;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 24px rgba(88, 166, 255, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideUp 0.15s ease-out;
+}
+
+@keyframes modalSlideUp {
+  from { transform: translateY(12px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.modal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.3px;
+}
+
+.modal-close {
+  padding: 3px 7px;
+  font-size: 12px;
+}
+
+.modal-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg-card);
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-form .form-group label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+}
+
+.settings-form input[type="text"],
+.settings-form input[type="password"],
+.settings-form select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  outline: none;
+  font-family: var(--font-mono);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+}
+
+.settings-form input[type="text"]:focus,
+.settings-form input[type="password"]:focus,
+.settings-form select:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+.input-with-button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.input-with-button input {
+  flex: 1;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.settings-alert {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.settings-alert.info {
+  background: rgba(88, 166, 255, 0.12);
+  border: 1px solid var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.settings-alert.loading {
+  background: rgba(210, 153, 34, 0.15);
+  border: 1px solid var(--accent-yellow);
+  color: var(--accent-yellow);
+}
+
+.settings-alert.success {
+  background: rgba(63, 185, 80, 0.15);
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+}
+
+.settings-alert.error {
+  background: rgba(248, 81, 73, 0.15);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+}
+
