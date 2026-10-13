@@ -56,6 +56,11 @@ class TestViewerServer(AioHTTPTestCase):
         assert resp.status == 404
 
     @unittest_run_loop
+    async def test_get_run_detail_path_traversal(self):
+        resp = await self.client.request("GET", "/api/runs/..%2F..%2Fetc%2Fpasswd")
+        assert resp.status in (400, 404)
+
+    @unittest_run_loop
     async def test_websocket_live_ping(self):
         ws = await self.client.ws_connect("/ws/live")
         await ws.send_str("ping")

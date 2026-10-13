@@ -152,12 +152,13 @@ async def handle_get_run_detail(request: web.Request) -> web.Response:
     if collector:
         return web.json_response(collector.get_bundle().model_dump())
 
-    # 2. Check direct candidate file paths
+    # 2. Check direct candidate file paths (sanitized against directory traversal)
+    safe_id = Path(run_id).name
     candidates = [
-        inv_dir / f"{run_id}.json",
-        inv_dir / run_id,
-        inv_dir / f"investigation_{run_id}.json",
-        inv_dir / f"bundle_{run_id}.json",
+        inv_dir / f"{safe_id}.json",
+        inv_dir / safe_id,
+        inv_dir / f"investigation_{safe_id}.json",
+        inv_dir / f"bundle_{safe_id}.json",
     ]
     target_path = None
     for cand in candidates:
@@ -168,7 +169,7 @@ async def handle_get_run_detail(request: web.Request) -> web.Response:
     # 3. Check file stem match
     if not target_path and inv_dir.exists():
         for p in inv_dir.glob("*.json"):
-            if p.stem == run_id:
+            if p.stem in (run_id, safe_id):
                 target_path = p
                 break
 
@@ -177,7 +178,7 @@ async def handle_get_run_detail(request: web.Request) -> web.Response:
         for p in inv_dir.glob("*.json"):
             try:
                 bundle = load_bundle(p)
-                if bundle.metadata.id == run_id:
+                if bundle.metadata.id in (run_id, safe_id):
                     return web.json_response(bundle.model_dump())
             except Exception:
                 continue
@@ -269,9 +270,15 @@ async def _run_investigation_worker(app: web.Application, collector: Investigati
         except Exception as err:
             logger.warning("Could not persist bundle for %s: %s", run_id, err)
 
+        # Drain event queue before cancelling forwarder
+        drain_deadline = loop.time() + 2.0
+        while not q.empty() and loop.time() < drain_deadline:
+            await asyncio.sleep(0.02)
+
         collector.unsubscribe(q)
         forwarder.cancel()
         _active_tasks(app).pop(run_id, None)
+        _active_collectors(app).pop(run_id, None)
 
 
 async def handle_investigate(request: web.Request) -> web.Response:
@@ -317,23 +324,10 @@ async def handle_abort(request: web.Request) -> web.Response:
     run_id = request.match_info["run_id"]
 
     task = _active_tasks(app).get(run_id)
-    collector = _active_collectors(app).get(run_id)
-
-    if not task and not collector:
+    if not task or task.done():
         return web.json_response({"error": f"Active run '{run_id}' not found"}, status=404)
 
-    if task and not task.done():
-        task.cancel()
-
-    if collector:
-        collector.finish(status="ABORTED")
-        try:
-            bundle = collector.get_bundle()
-            bundle_file = _inv_dir(app) / f"bundle_{run_id}.json"
-            bundle_file.write_text(bundle.model_dump_json(indent=2), encoding="utf-8")
-        except Exception:
-            pass
-
+    task.cancel()
     return web.json_response({"run_id": run_id, "status": "ABORTED"})
 
 
@@ -361,16 +355,17 @@ async def handle_followup(request: web.Request) -> web.Response:
     history = data.get("history", [])
 
     if run_id:
+        safe_id = Path(run_id).name
         bundle = None
         if run_id in _active_collectors(app):
             bundle = _active_collectors(app)[run_id].get_bundle()
         else:
             inv_dir: Path = _inv_dir(app)
             candidates = [
-                inv_dir / f"{run_id}.json",
-                inv_dir / run_id,
-                inv_dir / f"investigation_{run_id}.json",
-                inv_dir / f"bundle_{run_id}.json",
+                inv_dir / f"{safe_id}.json",
+                inv_dir / safe_id,
+                inv_dir / f"investigation_{safe_id}.json",
+                inv_dir / f"bundle_{safe_id}.json",
             ]
             for cand in candidates:
                 if cand.is_file():
@@ -378,7 +373,7 @@ async def handle_followup(request: web.Request) -> web.Response:
                     break
             if not bundle and inv_dir.exists():
                 for p in inv_dir.glob("*.json"):
-                    if p.stem == run_id:
+                    if p.stem in (run_id, safe_id):
                         bundle = load_bundle(p)
                         break
 
@@ -447,15 +442,16 @@ async def handle_ws_live(request: web.Request) -> web.WebSocketResponse:
     """WebSocket streaming live collector events to connected browser clients."""
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-    _ws_clients(request.app).add(ws)
 
-    # Replay recent events from active collector if available
+    # Replay recent events from active collector before subscribing to live broadcasts
     try:
         for collector in _active_collectors(request.app).values():
             for ev in collector.events[-50:]:
                 await ws.send_str(ev.model_dump_json())
     except Exception as err:
         logger.debug("Failed to replay recent events to WS: %s", err)
+
+    _ws_clients(request.app).add(ws)
 
     try:
         async for msg in ws:
