@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# One image, two front doors: `ui` (the default) serves Streamlit on 8501 and
+# One image, two front doors: `ui` (the default) serves the Web Console on 8080 and
 # `mcp` serves MCP on stdio. In `mcp` mode stdout is the JSON-RPC transport and
 # one stray line breaks it for every host, so all other output goes to stderr.
 
@@ -88,5 +88,5 @@ echo "Refreshing model list from providers..."
 python3 -c "import model_registry; model_registry.refresh(verbose=True)" || \
   echo "Model refresh skipped; using bundled model list."
 
-echo "Starting Robin: AI-Powered Dark Web OSINT Tool..."
-exec streamlit run ui.py --server.port=8501 --server.address=0.0.0.0
+echo "Starting Robin: AI-Powered Dark Web OSINT Web Console..."
+exec python3 main.py --host 0.0.0.0 --port 8080 "$@"

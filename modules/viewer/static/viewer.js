@@ -1034,8 +1034,14 @@ class RobinViewer {
     // Bullet lists - item
     html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li>$1</li>');
 
-    // Markdown Links [text](url)
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Markdown Links [text](url) - validate safe protocol (http, https, or anchor #)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, url) => {
+      const trimmed = url.trim();
+      if (/^(https?:\/\/|#)/i.test(trimmed)) {
+        return `<a href="${trimmed}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+      }
+      return label;
+    });
 
     // Line breaks to <p>
     html = html.replace(/\n\n+/g, '</p><p>');
