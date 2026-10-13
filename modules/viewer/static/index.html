@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Robin-CTI // Threat Intelligence & Workflow Replay</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Top Header -->
+    <header>
+      <div class="brand">
+        <span class="logo-badge">ROBIN-CTI</span>
+        <span class="header-title" id="target-name">Threat Investigation Console</span>
+        <span class="pill" id="status-tor"><span class="pulse-dot"></span> Tor: Checking...</span>
+        <span class="pill" id="status-cti">CTI: 0 records</span>
+        <span class="pill" id="status-model">Model: auto</span>
+        <span class="pill" id="status-badge">READY</span>
+      </div>
+
+      <div class="header-actions">
+        <div class="meta-stats">
+          <span>Time: <strong id="run-duration">0s</strong></span>
+          <span>Sources: <strong id="results-count">0</strong></span>
+        </div>
+        <select id="run-select" title="Historical Investigation Runs">
+          <option value="">(Current Session)</option>
+        </select>
+        <button id="btn-new-investigation" class="btn-primary" title="Start New Investigation">
+          <span>+</span> New Investigation
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dual-Pane Workspace Split -->
+    <div class="main-container">
+      <!-- Left Pane: Launch Form & Stage Timeline -->
+      <aside class="left-pane">
+        <!-- New Investigation Launch Form -->
+        <section class="investigation-form-card" id="investigation-card">
+          <div class="card-header">
+            <span class="card-title">Launch Investigation</span>
+            <span class="toggle-icon" id="form-toggle-btn" title="Toggle Form">▾</span>
+          </div>
+
+          <form id="investigation-form" class="launch-form">
+            <div class="form-group">
+              <label for="query-input">Target Entity / IOC / Subject</label>
+              <input type="text" id="query-input" placeholder="e.g. LockBit ransomware, CVE-2024-21413, Akira cartel..." required autocomplete="off">
+            </div>
+
+            <div class="form-group">
+              <label>Search Scope</label>
+              <div class="scope-pills">
+                <label class="pill-radio">
+                  <input type="radio" name="scope" value="darkweb" id="scope-darkweb" checked>
+                  <span>Dark Web</span>
+                </label>
+                <label class="pill-radio">
+                  <input type="radio" name="scope" value="clearweb" id="scope-clearweb">
+                  <span>Clear Web</span>
+                </label>
+                <label class="pill-radio">
+                  <input type="radio" name="scope" value="all" id="scope-all">
+                  <span>All (Both)</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="preset-select">Intel Preset</label>
+                <select id="preset-select">
+                  <option value="threat_intel">Threat Intel (Default)</option>
+                  <option value="ransomware">Ransomware Tracker</option>
+                  <option value="leak_monitoring">Leak Monitoring</option>
+                  <option value="actor_profile">Threat Actor Profile</option>
+                  <option value="zero_day">Zero-Day / Exploit PoC</option>
+                </select>
+              </div>
+
+              <div class="form-group w-80">
+                <label for="iterations-input">Deep Iters</label>
+                <input type="number" id="iterations-input" min="1" max="5" value="1">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="model-select">LLM Engine</label>
+              <select id="model-select">
+                <option value="">Default (Server Config)</option>
+              </select>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="btn-start-investigation" class="btn-launch">
+                🚀 Start Investigation
+              </button>
+              <button type="button" id="btn-abort-investigation" class="btn-abort" disabled>
+                🛑 Abort
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Pipeline Stage Timeline -->
+        <section class="timeline-section">
+          <div class="timeline-header">
+            <span>Pipeline Execution Timeline</span>
+            <span class="timeline-status-badge" id="timeline-progress-badge">Idle</span>
+          </div>
+
+          <div class="stage-timeline" id="stage-timeline">
+            <!-- 1. Refine -->
+            <div class="stage-card" id="stage-refine" data-stage="refine">
+              <div class="stage-icon">🎯</div>
+              <div class="stage-info">
+                <div class="stage-title-line">
+                  <span class="stage-name">Query Refinement</span>
+                  <span class="stage-badge">pending</span>
+                </div>
+                <div class="stage-desc">Synthesizes targeted boolean & regex terms</div>
+              </div>
+            </div>
+
+            <!-- 2. CTI Lookup -->
+            <div class="stage-card" id="stage-cti_lookup" data-stage="cti_lookup">
+              <div class="stage-icon">🛡️</div>
+              <div class="stage-info">
+                <div class="stage-title-line">
+                  <span class="stage-name">CTI Database Lookup</span>
+                  <span class="stage-badge">pending</span>
+                </div>
+                <div class="stage-desc">Cross-references known threats & MITRE ATT&CK</div>
+              </div>
+            </div>
+
+            <!-- 3. Search -->
+            <div class="stage-card" id="stage-search" data-stage="search">
+              <div class="stage-icon">🔍</div>
+              <div class="stage-info">
+                <div class="stage-title-line">
+                  <span class="stage-name">Dark & Clear Search</span>
+                  <span class="stage-badge">pending</span>
+                </div>
+                <div class="stage-desc">Queries Tor hidden services & clearweb engines</div>
+              </div>
+            </div>
+
+            <!-- 4. Filter -->
+            <div class="stage-card" id="stage-filter" data-stage="filter">
+              <div class="stage-icon">⚡</div>
+              <div class="stage-info">
+                <div class="stage-title-line">
+                  <span class="stage-name">Relevance Filtering</span>
+                  <span class="stage-badge">pending</span>
+                </div>
+                <div class="stage-desc">Ranks & dedupes intelligence leads</div>
+              </div>
+            </div>
+
+            <!-- 5. Scrape -->
+            <div class="stage-card" id="stage-scrape" data-stage="scrape">
+              <div class="stage-icon">🌐</div>
+              <div class="stage-info">
+                <div class="stage-title-line">
+                  <span class="stage-name">Onion Deep Scraping</span>
+                  <span class="stage-badge">pending</span>
+                </div>
+                <div class="stage-desc">Extracts raw onion payloads via Tor proxy</div>
+              </div>
+            </div>
+
+            <!-- 6. Gap Analysis -->
+            <div class="stage-card" id="stage-eval_gap" data-stage="eval_gap">
+              <div class="stage-icon">🧩</div>
+              <div class="stage-info">
+                <div class="stage-title-line">
+                  <span class="stage-name">Gap Analysis & Iteration</span>
+                  <span class="stage-badge">pending</span>
+                </div>
+                <div class="stage-desc">Evaluates intelligence gaps and pivots</div>
+              </div>
+            </div>
+
+            <!-- 7. Summarize -->
+            <div class="stage-card" id="stage-summarize" data-stage="summarize">
+              <div class="stage-icon">📄</div>
+              <div class="stage-info">
+                <div class="stage-title-line">
+                  <span class="stage-name">Intelligence Synthesis</span>
+                  <span class="stage-badge">pending</span>
+                </div>
+                <div class="stage-desc">Generates final actionable threat briefing</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Right Pane: Inspector Tabs & Panels -->
+      <main class="inspector-pane">
+        <!-- Tab Navigation Bar -->
+        <nav class="tabs-bar">
+          <button class="tab-btn active" data-tab="tab-terminal">💻 Terminal & Logs</button>
+          <button class="tab-btn" data-tab="tab-reasoning">🧠 LLM Reasoning</button>
+          <button class="tab-btn" data-tab="tab-findings">🛡️ CTI & Findings</button>
+          <button class="tab-btn" data-tab="tab-report">📄 Intelligence Report</button>
+          <button class="tab-btn" data-tab="tab-followup">💬 Follow-up Analyst</button>
+          <button class="tab-btn" data-tab="tab-json">📦 Raw Trace JSON</button>
+        </nav>
+
+        <!-- Tab 1: Terminal & Logs -->
+        <div class="tab-content active" id="tab-terminal">
+          <div class="terminal-screen">
+            <div class="terminal-topbar">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-yellow"></span>
+              <span class="dot dot-green"></span>
+              <span class="terminal-title" id="terminal-title">robin-cti // execution telemetry</span>
+            </div>
+            <div class="terminal-body" id="terminal-body">
+              <div class="terminal-prompt-line" id="terminal-prompt">[robin-cti] $ ready</div>
+              <pre class="terminal-output" id="terminal-output">Ready to execute investigation or replay recorded trace.</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: LLM Reasoning -->
+        <div class="tab-content" id="tab-reasoning">
+          <div class="reasoning-container">
+            <div class="thought-box" id="thought-container">
+              <div class="thought-header">🧠 Real-Time Cognitive Stream & Strategy</div>
+              <div class="thought-body" id="thought-text">Awaiting LLM query refinement or threat analysis...</div>
+            </div>
+            <div class="stream-tokens-box" id="reasoning-tokens-container">
+              <div class="box-subtitle">Live Token Stream</div>
+              <pre class="tokens-output" id="reasoning-tokens"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: CTI & Findings -->
+        <div class="tab-content" id="tab-findings">
+          <div class="findings-pane-content">
+            <div class="findings-stats-bar">
+              <div class="stat-box">
+                <span class="stat-num" id="stat-sources">0</span>
+                <span class="stat-label">Sources Discovered</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-num" id="stat-cti-hits">0</span>
+                <span class="stat-label">CTI Matches</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-num" id="stat-scraped">0</span>
+                <span class="stat-label">Pages Scraped</span>
+              </div>
+            </div>
+
+            <div class="section-title">Discovered Threat Sources & IOCs</div>
+            <div class="findings-list" id="findings-list">
+              <p class="empty-state">No threat sources recorded yet.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Intelligence Report -->
+        <div class="tab-content" id="tab-report">
+          <div class="report-wrapper" id="report-container">
+            <div class="report-header">
+              <h2 id="report-title">Threat Intelligence Assessment</h2>
+              <div class="report-actions">
+                <button id="btn-copy-report" class="btn-small">📋 Copy Markdown</button>
+              </div>
+            </div>
+            <div class="pivots-section" id="report-pivots-box" style="display: none;">
+              <span class="pivots-label">Pivots & Next Leads:</span>
+              <div class="pivots-tags" id="report-pivots"></div>
+            </div>
+            <div class="report-markdown-body" id="report-body">
+              <p class="empty-state">No report generated yet. Run an investigation to synthesize threat intelligence.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: Follow-up Analyst -->
+        <div class="tab-content" id="tab-followup">
+          <div class="followup-chat-container">
+            <div class="chat-header">
+              <span class="chat-title">Interactive CTI Threat Analyst</span>
+              <span class="chat-subtitle">Ask questions based on current investigation evidence</span>
+            </div>
+
+            <div class="chat-messages" id="chat-history">
+              <div class="chat-message assistant">
+                <div class="sender-badge">Robin CTI Analyst</div>
+                <div class="message-content">
+                  Hello! Once an investigation completes or a trace is loaded, ask me any follow-up questions about threat actors, IOCs, CVEs, or mitigation strategies.
+                </div>
+              </div>
+            </div>
+
+            <form class="chat-input-bar" id="chat-form">
+              <input type="text" id="chat-input" placeholder="Ask follow-up: e.g. What are the key IOCs? Which CVEs are exploited?" autocomplete="off">
+              <button type="submit" id="btn-chat-send" class="btn-primary">Send</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Tab 6: Raw Trace JSON -->
+        <div class="tab-content" id="tab-json">
+          <div class="json-viewer-header">
+            <span>Raw TraceBundle Representation</span>
+            <button id="btn-copy-json" class="btn-small">📋 Copy JSON</button>
+          </div>
+          <pre id="raw-json" class="json-code-block"></pre>
+        </div>
+      </main>
+    </div>
+
+    <!-- Bottom Playback Control Bar -->
+    <footer class="controls-bar">
+      <div class="btn-group">
+        <button id="btn-first" title="First Turn">⏮</button>
+        <button id="btn-prev" title="Previous Turn (Left Arrow)">◀</button>
+        <button id="btn-play-pause" title="Play / Pause (Space)">▶ Play</button>
+        <button id="btn-next" title="Next Turn (Right Arrow)">▶</button>
+        <button id="btn-last" title="Last Turn">⏭</button>
+      </div>
+
+      <div class="slider-container">
+        <input type="range" id="timeline-slider" min="0" max="0" value="0">
+        <span class="step-counter" id="step-counter">Turn 0 / 0</span>
+      </div>
+
+      <div class="btn-group">
+        <select id="speed-select" title="Playback Speed">
+          <option value="1">1x Speed</option>
+          <option value="2">2x Speed</option>
+          <option value="5">5x Speed</option>
+        </select>
+        <span class="playback-status-text" id="playback-status">Ready</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/viewer.js"></script>
+</body>
+</html>
