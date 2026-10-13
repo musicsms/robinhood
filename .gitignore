@@ -178,3 +178,4 @@ cython_debug/
 
 # Saved investigations are user data and test output, never source.
 investigations/
+.superpowers/
