@@ -40,7 +40,7 @@ RUN chmod +x /app/entrypoint.sh && \
     chown robin:robin /app
 
 # 8090 is the default Interactive Web Console.
-EXPOSE 8090 8080 8501
+EXPOSE 8090
 
 USER robin
 
