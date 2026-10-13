@@ -512,7 +512,7 @@ async def handle_post_settings_llm(request: web.Request) -> web.Response:
         return web.json_response({"error": "Expected JSON object"}, status=400)
 
     from modules.viewer.settings import update_llm_settings
-    success, message, result = update_llm_settings(data, request.app)
+    success, message, result = await asyncio.to_thread(update_llm_settings, data, request.app)
     if not success:
         return web.json_response({"success": False, "error": message}, status=400)
 

@@ -76,6 +76,20 @@ def test_test_llm_connection_failure_redacted(mock_get_llm):
 
 
 class TestSettingsEndpoints(AioHTTPTestCase):
+    def setUp(self):
+        import os
+        self._environ_backup = dict(os.environ)
+        self._persist_patch = patch("modules.viewer.settings.persist_to_env")
+        self.mock_persist = self._persist_patch.start()
+        super().setUp()
+
+    def tearDown(self):
+        import os
+        super().tearDown()
+        self._persist_patch.stop()
+        os.environ.clear()
+        os.environ.update(self._environ_backup)
+
     async def get_application(self):
         self.tmp_dir = Path("/tmp/robin_test_settings")
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -161,3 +175,34 @@ class TestSettingsEndpoints(AioHTTPTestCase):
             assert data["success"] is True
             assert "Connected" in data["message"]
             assert data["model"] == "gpt-4o"
+
+    @unittest_run_loop
+    async def test_post_settings_switch_provider_clears_custom_endpoint(self):
+        # 1. Set custom endpoint first
+        custom_payload = {
+            "provider": "custom",
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key": "sk-custom123456",
+            "model": "deepseek-chat",
+            "test_connection": False,
+        }
+        resp = await self.client.request("POST", "/api/settings/llm", json=custom_payload)
+        assert resp.status == 200
+
+        # 2. Switch to gemini
+        gemini_payload = {
+            "provider": "gemini",
+            "api_key": "AIzaSyTest123456",
+            "model": "gemini-2.0-flash",
+            "test_connection": False,
+        }
+        resp2 = await self.client.request("POST", "/api/settings/llm", json=gemini_payload)
+        assert resp2.status == 200
+
+        # 3. Check GET returns gemini and no deepseek base_url
+        get_resp = await self.client.request("GET", "/api/settings/llm")
+        assert get_resp.status == 200
+        get_data = await get_resp.json()
+        assert get_data["provider"] == "gemini"
+        assert get_data["model"] == "gemini-2.0-flash"
+        assert "deepseek" not in get_data.get("base_url", "")

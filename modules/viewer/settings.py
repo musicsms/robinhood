@@ -211,7 +211,22 @@ def update_llm_settings(data: dict, app: web.Application) -> Tuple[bool, str, di
     model = (data.get("model") or "").strip()
     test_connection = bool(data.get("test_connection", False))
 
-    current_cfg = app.get("robin_config") or get_config()
+    current_cfg = None
+    try:
+        from modules.viewer.server import ROBIN_CONFIG_HOLDER_KEY
+        if ROBIN_CONFIG_HOLDER_KEY in app:
+            holder = app[ROBIN_CONFIG_HOLDER_KEY]
+            if isinstance(holder, dict) and "cfg" in holder:
+                current_cfg = holder["cfg"]
+    except Exception:
+        pass
+
+    if current_cfg is None:
+        holder = app.get("robin_config_holder")
+        if isinstance(holder, dict) and "cfg" in holder:
+            current_cfg = holder["cfg"]
+    if current_cfg is None:
+        current_cfg = app.get("robin_config") or get_config()
 
     existing_key = None
     if provider in ("custom", "deepseek"):
@@ -252,7 +267,14 @@ def update_llm_settings(data: dict, app: web.Application) -> Tuple[bool, str, di
         env_updates["ROBIN_MODEL"] = target_model
         cfg_updates["robin_model"] = target_model
         env_updates["ROBIN_PROVIDER"] = provider
-    elif provider == "openai":
+    else:
+        # Avoid retaining stale custom_api_base_url and custom_api_model on provider switch
+        cfg_updates["custom_api_base_url"] = None
+        cfg_updates["custom_api_model"] = None
+        env_updates["CUSTOM_API_BASE_URL"] = ""
+        env_updates["CUSTOM_API_MODEL"] = ""
+
+    if provider == "openai":
         if effective_api_key:
             env_updates["OPENAI_API_KEY"] = effective_api_key
             cfg_updates["openai_api_key"] = effective_api_key
@@ -313,19 +335,27 @@ def update_llm_settings(data: dict, app: web.Application) -> Tuple[bool, str, di
             return False, test_msg, {}
 
     for k, v in env_updates.items():
-        if v is not None:
+        if v:
             os.environ[k] = str(v)
+        else:
+            os.environ.pop(k, None)
 
     new_cfg = RobinConfig.from_env()
     config._env_config = new_cfg
     try:
         from modules.viewer.server import ROBIN_CONFIG_HOLDER_KEY
-        if ROBIN_CONFIG_HOLDER_KEY in app:
+        if ROBIN_CONFIG_HOLDER_KEY in app and isinstance(app[ROBIN_CONFIG_HOLDER_KEY], dict):
             app[ROBIN_CONFIG_HOLDER_KEY]["cfg"] = new_cfg
     except Exception:
         pass
+    holder = app.get("robin_config_holder")
+    if isinstance(holder, dict):
+        holder["cfg"] = new_cfg
     if not getattr(app, "frozen", False):
-        app["robin_config"] = new_cfg
+        try:
+            app["robin_config"] = new_cfg
+        except Exception:
+            pass
 
     try:
         import llm_utils
