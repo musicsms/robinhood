@@ -89,4 +89,4 @@ python3 -c "import model_registry; model_registry.refresh(verbose=True)" || \
   echo "Model refresh skipped; using bundled model list."
 
 echo "Starting Robin: AI-Powered Dark Web OSINT Web Console..."
-exec python3 main.py --host 0.0.0.0 --port 8080 "$@"
+exec python3 main.py --host 0.0.0.0 --port "${ROBIN_PORT:-8090}" "$@"

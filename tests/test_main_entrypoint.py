@@ -9,7 +9,7 @@ from main import main, parse_args
 def test_parse_args_defaults():
     args = parse_args([])
     assert args.host == "0.0.0.0"
-    assert args.port == 8080
+    assert args.port == 8090
 
 
 def test_parse_args_custom():
@@ -45,10 +45,10 @@ def test_main_execution_flow(mock_cti, mock_tor, mock_run_server):
 def test_main_handles_tor_down(mock_cti, mock_tor, mock_run_server):
     mock_tor.return_value = {"status": "down", "error": "Connection refused"}
 
-    main(["--port", "8080"])
+    main([])
 
     mock_tor.assert_called_once()
-    mock_run_server.assert_called_once_with(host="0.0.0.0", port=8080)
+    mock_run_server.assert_called_once_with(host="0.0.0.0", port=8090)
 
 
 @patch("main.run_viewer_server")
@@ -60,7 +60,7 @@ def test_main_handles_cti_error(mock_cti, mock_tor, mock_run_server):
 
     main([])
 
-    mock_run_server.assert_called_once_with(host="0.0.0.0", port=8080)
+    mock_run_server.assert_called_once_with(host="0.0.0.0", port=8090)
 
 
 def test_viewer_js_markdown_link_protocol_sanitizer():

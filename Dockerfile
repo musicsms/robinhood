@@ -39,10 +39,8 @@ RUN chmod +x /app/entrypoint.sh && \
     install -d -m 0755 -o robin -g robin /app/investigations && \
     chown robin:robin /app
 
-# 8080 is the default Interactive Web Console. 8501 is legacy Streamlit.
-# The MCP server speaks over stdio and needs no port.
-# Tor's SOCKS port stays unpublished on purpose: it is an internal proxy.
-EXPOSE 8080 8501
+# 8090 is the default Interactive Web Console.
+EXPOSE 8090 8080 8501
 
 USER robin
 

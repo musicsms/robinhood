@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import inspect
 import logging
+import os
 import sys
 from typing import List, Optional
 
@@ -36,7 +37,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--port",
         type=int,
-        default=8080,
+        default=int(os.getenv("ROBIN_PORT", os.getenv("PORT", 8090))),
         help="Port to listen on for HTTP & WebSocket traffic",
     )
     return parser.parse_args(argv if argv is not None else sys.argv[1:])
