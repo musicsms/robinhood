@@ -20,6 +20,13 @@ INVESTIGATIONS_DIR_KEY = web.AppKey("investigations_dir", Path)
 WS_CLIENTS_KEY = web.AppKey("ws_clients", set)
 ACTIVE_COLLECTORS_KEY = web.AppKey("active_collectors", dict)
 ACTIVE_TASKS_KEY = web.AppKey("active_tasks", dict)
+ROBIN_CONFIG_HOLDER_KEY = web.AppKey("robin_config_holder", dict)
+
+
+def _robin_cfg(app: web.Application) -> RobinConfig:
+    if ROBIN_CONFIG_HOLDER_KEY in app:
+        return app[ROBIN_CONFIG_HOLDER_KEY].get("cfg", get_config())
+    return app.get("robin_config", get_config())
 
 
 def _inv_dir(app: web.Application) -> Path:
@@ -70,7 +77,7 @@ async def handle_index(request: web.Request) -> web.StreamResponse:
 
 async def handle_status(request: web.Request) -> web.Response:
     """Return system health: Tor status, CTI index records count, available models."""
-    cfg = get_config()
+    cfg = _robin_cfg(request.app)
 
     # Tor status
     try:
@@ -239,7 +246,7 @@ async def _run_investigation_worker(app: web.Application, collector: Investigati
     def on_token(token):
         loop.call_soon_threadsafe(collector.on_token, token)
 
-    cfg = get_config()
+    cfg = _robin_cfg(app)
     inv_dir: Path = _inv_dir(app)
 
     try:
@@ -400,7 +407,7 @@ async def handle_followup(request: web.Request) -> web.Response:
     if not summary and not sources:
         return web.json_response({"error": "No investigation context available for followup"}, status=400)
 
-    cfg = get_config()
+    cfg = _robin_cfg(request.app)
     try:
         from llm import answer_followup, build_followup_context, get_llm
         from llm_utils import resolve_model_config
@@ -486,6 +493,36 @@ async def handle_ws_live(request: web.Request) -> web.WebSocketResponse:
     return ws
 
 
+async def handle_get_settings_llm(request: web.Request) -> web.Response:
+    """Return masked LLM configuration and available models."""
+    cfg = _robin_cfg(request.app)
+    from modules.viewer.settings import get_llm_settings
+    settings = get_llm_settings(cfg)
+    return web.json_response(settings)
+
+
+async def handle_post_settings_llm(request: web.Request) -> web.Response:
+    """Update LLM settings, test connection if requested, and persist."""
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON body"}, status=400)
+
+    if not isinstance(data, dict):
+        return web.json_response({"error": "Expected JSON object"}, status=400)
+
+    from modules.viewer.settings import update_llm_settings
+    success, message, result = update_llm_settings(data, request.app)
+    if not success:
+        return web.json_response({"success": False, "error": message}, status=400)
+
+    return web.json_response({
+        "success": True,
+        "message": message,
+        **result,
+    })
+
+
 def create_viewer_app(investigations_dir: Optional[Path] = None) -> web.Application:
     """Factory creating and configuring the aiohttp Web Application."""
     app = web.Application()
@@ -496,12 +533,15 @@ def create_viewer_app(investigations_dir: Optional[Path] = None) -> web.Applicat
     app[WS_CLIENTS_KEY] = set()
     app[ACTIVE_COLLECTORS_KEY] = {}
     app[ACTIVE_TASKS_KEY] = {}
+    app[ROBIN_CONFIG_HOLDER_KEY] = {"cfg": get_config()}
 
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
     # Routes
     app.router.add_get("/", handle_index)
     app.router.add_get("/api/status", handle_status)
+    app.router.add_get("/api/settings/llm", handle_get_settings_llm)
+    app.router.add_post("/api/settings/llm", handle_post_settings_llm)
     app.router.add_get("/api/runs", handle_get_runs)
     app.router.add_get("/api/runs/{run_id}", handle_get_run_detail)
     app.router.add_post("/api/investigate", handle_investigate)
