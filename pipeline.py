@@ -185,6 +185,7 @@ def run_investigation(cfg: Optional[RobinConfig],
         if on_stage:
             on_stage(name, inv)
 
+    search_scope = "hybrid" if search_scope in ("all", "both") else search_scope
     inv = Investigation(
         query=query,
         model=model,
@@ -326,6 +327,25 @@ def run_investigation(cfg: Optional[RobinConfig],
                 for cr in c_recs:
                     if cr.get("status") == "ok" and cr.get("text"):
                         scraped_pages[cr["url"]] = cr["text"]
+
+            # Fallback: if all filtered pages were unreachable/blocked, try other candidate results
+            if not scraped_pages and inv.results:
+                seen_filtered = {r.get("link") if isinstance(r, dict) else str(r) for r in inv.filtered}
+                fallbacks = [r for r in inv.results if (r.get("link") if isinstance(r, dict) else str(r)) not in seen_filtered][:max_scrape]
+                if fallbacks:
+                    fb_onion = [u for u in fallbacks if is_onion(u.get("link") if isinstance(u, dict) else str(u))]
+                    fb_clear = [u for u in fallbacks if not is_onion(u.get("link") if isinstance(u, dict) else str(u))]
+                    if fb_onion:
+                        scraped_pages.update(
+                            scrape_multiple(fb_onion, max_workers=threads, max_return_chars=content_chars) or {}
+                        )
+                    if fb_clear:
+                        from modules.scrape.clearweb import scrape_clearweb_multiple
+                        fb_recs = scrape_clearweb_multiple(fb_clear, max_workers=threads, max_return_chars=content_chars)
+                        for cr in fb_recs:
+                            if cr.get("status") == "ok" and cr.get("text"):
+                                scraped_pages[cr["url"]] = cr["text"]
+
             inv.scraped = scraped_pages
     except Exception as exc:
         raise PipelineError("scrape", exc) from exc

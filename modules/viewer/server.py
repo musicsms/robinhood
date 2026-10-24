@@ -271,7 +271,23 @@ async def _run_investigation_worker(app: web.Application, collector: Investigati
                 save=True,
             )
         )
-        status = "COMPLETED" if inv.status == "ok" else ("NO_RESULTS" if inv.status == "no_results" else "FAILED")
+        if inv.status == "ok":
+            status = "COMPLETED"
+        elif inv.status == "nothing_readable":
+            collector.record_log("warning", "Scraper could not read selected pages (sites timed out, offline, or blocked requests)")
+            status = "NO_RESULTS"
+        elif inv.status == "nothing_relevant":
+            collector.record_log("info", "No search results met topic relevance filtering criteria")
+            status = "NO_RESULTS"
+        elif inv.status == "engines_unreachable":
+            collector.record_log("warning", "Search engines timed out or unreachable via Tor/proxy")
+            status = "NO_RESULTS"
+        elif inv.status == "no_results":
+            collector.record_log("info", "No search results found for this query")
+            status = "NO_RESULTS"
+        else:
+            collector.record_log("error", f"Investigation concluded with status: {inv.status}")
+            status = "FAILED"
         collector.finish(status=status)
     except asyncio.CancelledError:
         collector.finish(status="ABORTED")
@@ -313,6 +329,8 @@ async def handle_investigate(request: web.Request) -> web.Response:
         return web.json_response({"error": "Query is required"}, status=400)
 
     search_scope = data.get("search_scope") or data.get("scope") or "darkweb"
+    if search_scope in ("all", "both"):
+        search_scope = "hybrid"
     preset = data.get("preset", "threat_intel")
     max_iterations = int(data.get("max_iterations") or data.get("iterations") or 1)
     model = data.get("model", "")
