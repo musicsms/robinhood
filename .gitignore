@@ -183,3 +183,6 @@ investigations/
 # superpowers worktrees and workspaces
 .worktrees/
 .superpowers/
+
+# listen-mode runtime storage (SQLite + WAL/shm files)
+data/listen/

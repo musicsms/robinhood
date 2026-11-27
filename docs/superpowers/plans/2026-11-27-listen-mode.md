@@ -159,12 +159,12 @@ def test_extract_telegram_channels_from_sample(tmp_path):
                   "|[Private](https://t.me/joinchat/XYZ)|OFFLINE|\n")
     assert extract_telegram_channels(md) == ["chan_a", "chan_b"]
 
-def test_seed_on_real_infostealer_file_inserts_99(tmp_path):
+def test_seed_on_real_infostealer_file_inserts_98(tmp_path):
     conn = open_db(tmp_path / "w.db")
     path = Path("data/deepdarkCTI/telegram_infostealer.md")
     inserted = seed_from_deepdarkcti(conn, path, tags=["infostealer"])
-    assert inserted == 99
-    assert len(list_enabled(conn)) == 99
+    assert inserted == 98
+    assert len(list_enabled(conn)) == 98
     # second call is a no-op
     assert seed_from_deepdarkcti(conn, path, tags=["infostealer"]) == 0
 ```
@@ -181,7 +181,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'modules.listen.seed'`
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `.venv/bin/pytest tests/test_listen_seed.py -v`
-Expected: both tests PASS. The count `99` is pinned to today's file; if `pytest` fails with a different number, the upstream file changed — update both the spec and the test assertion in one commit, don't loosen the test to `> 0`.
+Expected: both tests PASS. The count `98` is pinned to today's file (shell grep that produced "99" also matched the shared `t.me/joinchat` prefix; the real-channel count is 98 after filtering invite links); if a run fails with a different number, the upstream file changed — update both the spec and the test assertion in one commit, don't loosen the test to `> 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -201,7 +201,7 @@ git commit -m "feat(listen): seed watchlist from deepdarkCTI telegram_infosteale
 **Interfaces:**
 - Produces:
   - `normalize(text: str) -> str` — NFKD-strip diacritics, casefold, collapse whitespace.
-  - `match_vn_finance(text: str) -> tuple[bool, list[str]]` — `(matched, reasons)` where each reason is `"class:match_literal"`. Classes and regexes from spec §3. Uses `\b` word boundaries except for the `phone` class. The `geo` class's `.vn` branch matches only when preceded by a non-word character or start-of-string and followed by a non-word character or end-of-string (so `vuln.vn` does, but `evn.vnc` does not).
+  - `match_vn_finance(text: str) -> tuple[bool, list[str]]` — `(matched, reasons)` where each reason is `"class:match_literal"`. Classes and regexes from spec §3. Uses `\b` word boundaries except for the `phone` class. The `geo` class's `.vn` branch matches when followed by a non-word character or end-of-string (so `vuln.vn` and `foo.vn/path` do, but `evn.vnctl` does not — `.vn` followed by a word char has no trailing boundary).
 
 - [ ] **Step 1: Write failing tests in `tests/test_listen_filters.py`**
 

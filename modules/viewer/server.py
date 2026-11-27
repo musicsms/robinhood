@@ -16,11 +16,14 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+from modules.listen.sinks.websocket import WebSocketBroadcaster
+
 INVESTIGATIONS_DIR_KEY = web.AppKey("investigations_dir", Path)
 WS_CLIENTS_KEY = web.AppKey("ws_clients", set)
 ACTIVE_COLLECTORS_KEY = web.AppKey("active_collectors", dict)
 ACTIVE_TASKS_KEY = web.AppKey("active_tasks", dict)
 ROBIN_CONFIG_HOLDER_KEY = web.AppKey("robin_config_holder", dict)
+LISTEN_BROADCASTER_KEY = web.AppKey("listen_broadcaster", WebSocketBroadcaster)
 
 
 def _robin_cfg(app: web.Application) -> RobinConfig:
@@ -475,6 +478,26 @@ async def handle_followup(request: web.Request) -> web.Response:
         return web.json_response({"error": f"Failed to answer followup: {exc}"}, status=500)
 
 
+async def handle_listen_ws(request: web.Request) -> web.WebSocketResponse:
+    """WebSocket feed for listen-mode match events."""
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    broadcaster = request.app[LISTEN_BROADCASTER_KEY]
+    broadcaster.register(ws)
+    try:
+        async for msg in ws:
+            if msg.type == WSMsgType.TEXT:
+                if msg.data.strip() == "ping":
+                    await ws.send_str("pong")
+            elif msg.type == WSMsgType.ERROR:
+                logger.warning(
+                    "/ws/listen closed with exception %s", ws.exception()
+                )
+    finally:
+        broadcaster.unregister(ws)
+    return ws
+
+
 async def handle_ws_live(request: web.Request) -> web.WebSocketResponse:
     """WebSocket streaming live collector events to connected browser clients."""
     ws = web.WebSocketResponse()
@@ -552,6 +575,7 @@ def create_viewer_app(investigations_dir: Optional[Path] = None) -> web.Applicat
     app[ACTIVE_COLLECTORS_KEY] = {}
     app[ACTIVE_TASKS_KEY] = {}
     app[ROBIN_CONFIG_HOLDER_KEY] = {"cfg": get_config()}
+    app[LISTEN_BROADCASTER_KEY] = WebSocketBroadcaster()
 
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -566,6 +590,7 @@ def create_viewer_app(investigations_dir: Optional[Path] = None) -> web.Applicat
     app.router.add_post("/api/investigate/{run_id}/abort", handle_abort)
     app.router.add_post("/api/followup", handle_followup)
     app.router.add_get("/ws/live", handle_ws_live)
+    app.router.add_get("/ws/listen", handle_listen_ws)
 
     # Static assets
     app.router.add_static("/static/", path=STATIC_DIR, name="static")
@@ -583,7 +608,19 @@ def create_viewer_app(investigations_dir: Optional[Path] = None) -> web.Applicat
     return app
 
 
-def run_viewer_server(host: str = "0.0.0.0", port: int = 8080, investigations_dir: Optional[Path] = None):
-    """Run the aiohttp web server application."""
+def run_viewer_server(
+    host: str = "0.0.0.0",
+    port: int = 8080,
+    investigations_dir: Optional[Path] = None,
+    on_startup=None,
+):
+    """Run the aiohttp web server application.
+
+    `on_startup` (optional) is an async callable `(app) -> Awaitable` appended
+    to `app.on_startup`, so a caller can register background workers (e.g.
+    listen mode) against the app before `web.run_app`.
+    """
     app = create_viewer_app(investigations_dir=investigations_dir)
+    if on_startup is not None:
+        app.on_startup.append(on_startup)
     web.run_app(app, host=host, port=port)

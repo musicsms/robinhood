@@ -33,7 +33,8 @@ Sprint 1** and covered in follow-up plans.
    seeded from a check-in YAML at `config/watchlist.yaml` on first boot.
 2. **Seed loader** that reads `data/deepdarkCTI/telegram_infostealer.md`,
    extracts every `https://t.me/<handle>` URL, and inserts a
-   `source_type=telegram_web` entry per unique channel (99 channels today).
+   `source_type=telegram_web` entry per unique channel (98 channels today
+   after filtering private invite links).
 3. **Vietnam-finance keyword filter** — a pure function that takes a post's
    text and returns `(matched: bool, reasons: list[str])`, where `reasons`
    names which keyword class triggered (`bank`, `payment`, `geo`, `phone`,
