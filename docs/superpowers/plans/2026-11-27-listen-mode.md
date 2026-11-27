@@ -201,7 +201,7 @@ git commit -m "feat(listen): seed watchlist from deepdarkCTI telegram_infosteale
 **Interfaces:**
 - Produces:
   - `normalize(text: str) -> str` — NFKD-strip diacritics, casefold, collapse whitespace.
-  - `match_vn_finance(text: str) -> tuple[bool, list[str]]` — `(matched, reasons)` where each reason is `"class:match_literal"`. Classes and regexes from spec §3. Uses `\b` word boundaries except for the `phone` class. The `geo` class's `.vn` branch matches only when preceded by a non-word character or start-of-string and followed by a non-word character or end-of-string (so `vuln.vn` does, but `evn.vnc` does not).
+  - `match_vn_finance(text: str) -> tuple[bool, list[str]]` — `(matched, reasons)` where each reason is `"class:match_literal"`. Classes and regexes from spec §3. Uses `\b` word boundaries except for the `phone` class. The `geo` class's `.vn` branch matches when followed by a non-word character or end-of-string (so `vuln.vn` and `foo.vn/path` do, but `evn.vnctl` does not — `.vn` followed by a word char has no trailing boundary).
 
 - [ ] **Step 1: Write failing tests in `tests/test_listen_filters.py`**
 
