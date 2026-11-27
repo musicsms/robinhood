@@ -1,0 +1,4 @@
+# Listen-mode watchlist seed. Edit entries here; the SQLite DB at
+# data/listen/watchlist.db is seeded from this file at boot (upsert, idempotent).
+# See docs/superpowers/specs/2026-11-27-listen-mode-design.md for the schema.
+[]
