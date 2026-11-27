@@ -188,6 +188,17 @@ def load_yaml_seed(path: Path) -> List[WatchlistEntry]:
         for key in _REQUIRED_YAML_FIELDS:
             if key not in item:
                 raise ValueError(f"Entry #{idx} in {path} missing required field '{key}'")
+        raw_tags = item.get("tags", [])
+        if isinstance(raw_tags, list):
+            tags = [str(t) for t in raw_tags]
+        elif isinstance(raw_tags, str):
+            # Forgive the forgotten brackets (`tags: infostealer`) — one tag.
+            tags = [raw_tags]
+        else:
+            raise ValueError(
+                f"Entry #{idx} in {path}: 'tags' must be a list or a string, "
+                f"got {type(raw_tags).__name__}"
+            )
         entries.append(
             WatchlistEntry(
                 id=str(item["id"]),
@@ -196,7 +207,7 @@ def load_yaml_seed(path: Path) -> List[WatchlistEntry]:
                 interval_sec=int(item.get("interval_sec", 60)),
                 enabled=bool(item.get("enabled", True)),
                 seed_from=item.get("seed_from"),
-                tags=list(item.get("tags", [])),
+                tags=tags,
                 last_polled=None,
                 last_error=None,
             )

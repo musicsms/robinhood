@@ -50,6 +50,18 @@ class TestMatchVNFinance(unittest.TestCase):
         # .vn inside a longer alnum run DOES NOT (spec §3 Review Focus)
         self.assertFalse(match_vn_finance("evn.vnctl internal mirror")[0])
 
+    def test_phone_e164_must_not_match_inside_larger_digit_run(self):
+        # A transaction id like "order no 7841234567890" has "84..." in the
+        # middle and must not raise a phone:+84... reason.
+        matched, reasons = match_vn_finance("order no 7841234567890 processed")
+        phone_reasons = [r for r in reasons if r.startswith("phone:")]
+        self.assertEqual(phone_reasons, [])
+
+    def test_phone_e164_still_matches_at_valid_boundary(self):
+        # Regression guard: the real cases must still work after the fix.
+        self.assertTrue(match_vn_finance("contact +84 912 345 678")[0])
+        self.assertTrue(match_vn_finance("Call 84912345678 now")[0])
+
 
 if __name__ == "__main__":
     unittest.main()

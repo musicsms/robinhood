@@ -110,6 +110,28 @@ class TestWatchlistDB(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_yaml_seed(p)
 
+    def test_load_yaml_seed_coerces_bare_string_tag_to_single_element_list(self):
+        # A user who writes `tags: infostealer` (missing brackets) must not
+        # end up with ['i','n','f','o','s','t','e','a','l','e','r'].
+        p = self.tmp_path / "w.yaml"
+        p.write_text(
+            "- id: a\n  source_type: telegram_web\n  target: '@x'\n"
+            "  tags: infostealer\n",
+            encoding="utf-8",
+        )
+        entries = load_yaml_seed(p)
+        self.assertEqual(entries[0].tags, ["infostealer"])
+
+    def test_load_yaml_seed_rejects_tags_that_are_neither_list_nor_string(self):
+        p = self.tmp_path / "w.yaml"
+        p.write_text(
+            "- id: a\n  source_type: telegram_web\n  target: '@x'\n"
+            "  tags: 42\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError):
+            load_yaml_seed(p)
+
 
 if __name__ == "__main__":
     unittest.main()

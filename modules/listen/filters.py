@@ -44,7 +44,7 @@ _GEO_RE = re.compile(
 # Phone forms:
 #  - E.164 compact "+84XXXXXXXXX" (9-10 digits after country code)
 #  - National "0[35789]XXXXXXXX"
-_PHONE_E164_RE = re.compile(r"\+?84\d{9,10}\b")
+_PHONE_E164_RE = re.compile(r"(?<![\d+])\+?84\d{9,10}\b")
 _PHONE_NATL_RE = re.compile(r"\b0[35789]\d{8}\b")
 
 # Collapse separators between two digits so "+84 912 345 678" compacts to
