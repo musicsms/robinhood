@@ -608,7 +608,19 @@ def create_viewer_app(investigations_dir: Optional[Path] = None) -> web.Applicat
     return app
 
 
-def run_viewer_server(host: str = "0.0.0.0", port: int = 8080, investigations_dir: Optional[Path] = None):
-    """Run the aiohttp web server application."""
+def run_viewer_server(
+    host: str = "0.0.0.0",
+    port: int = 8080,
+    investigations_dir: Optional[Path] = None,
+    on_startup=None,
+):
+    """Run the aiohttp web server application.
+
+    `on_startup` (optional) is an async callable `(app) -> Awaitable` appended
+    to `app.on_startup`, so a caller can register background workers (e.g.
+    listen mode) against the app before `web.run_app`.
+    """
     app = create_viewer_app(investigations_dir=investigations_dir)
+    if on_startup is not None:
+        app.on_startup.append(on_startup)
     web.run_app(app, host=host, port=port)

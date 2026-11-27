@@ -103,13 +103,30 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Warm model registry
     refresh_models()
 
+    # Build listen-mode startup hook if enabled.
+    on_startup = None
+    if os.getenv("ROBIN_LISTEN_ENABLED") == "1":
+        from config import get_config
+        from modules.listen.boot import start_listen
+
+        cfg = get_config()
+
+        async def on_startup(app):
+            await start_listen(app, cfg)
+
+        logger.info("Listen mode enabled (ROBIN_LISTEN_ENABLED=1).")
+
     # Launch viewer server
     logger.info("Starting Robin-CTI Web Console on http://%s:%d ...", args.host, args.port)
 
     if inspect.iscoroutinefunction(run_viewer_server):
-        return asyncio.run(run_viewer_server(host=args.host, port=args.port))
+        return asyncio.run(
+            run_viewer_server(host=args.host, port=args.port, on_startup=on_startup)
+        )
     else:
-        res = run_viewer_server(host=args.host, port=args.port)
+        res = run_viewer_server(
+            host=args.host, port=args.port, on_startup=on_startup
+        )
         if inspect.iscoroutine(res):
             return asyncio.run(res)
         return res
