@@ -209,4 +209,5 @@ def scrape_telegram_channel(
         "title": title,
         "posts_count": len(posts),
         "text": fenced_content,
+        "posts": posts,
     }
